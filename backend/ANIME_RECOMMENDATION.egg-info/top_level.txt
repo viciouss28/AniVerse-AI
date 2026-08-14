@@ -1,5 +1,0 @@
-config
-data_pipeline
-pipeline
-src
-utils
