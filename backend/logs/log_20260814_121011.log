@@ -131,3 +131,15 @@ ConnectionResetError: [WinError 10054] An existing connection was forcibly close
 2026-08-14 12:16:09,323 -  INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
 2026-08-14 12:16:11,175 -  INFO - HTTP Request: POST https://fb036385-ad34-4ae1-8ed4-74b225e24f1d.europe-west6-0.gcp.cloud.qdrant.io:6333/collections/Anime_Data/points/query "HTTP/1.1 200 OK"
 2026-08-14 12:16:12,732 -  INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-14 12:45:24,091 -  INFO - Recived query : suggest something similar to jujutse kaisen 
+2026-08-14 12:45:25,507 -  INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-14 12:45:32,256 -  INFO - HTTP Request: POST https://fb036385-ad34-4ae1-8ed4-74b225e24f1d.europe-west6-0.gcp.cloud.qdrant.io:6333/collections/Anime_Data/points/query "HTTP/1.1 200 OK"
+2026-08-14 12:45:33,932 -  INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-14 12:46:07,887 -  INFO - Recived query : suggest something similar toDemon Slayer: Kimetsu no Yaiba
+2026-08-14 12:46:09,132 -  INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-14 12:46:10,098 -  INFO - HTTP Request: POST https://fb036385-ad34-4ae1-8ed4-74b225e24f1d.europe-west6-0.gcp.cloud.qdrant.io:6333/collections/Anime_Data/points/query "HTTP/1.1 200 OK"
+2026-08-14 12:46:11,930 -  INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-14 12:46:16,153 -  INFO - Recived query : suggest something similar to Demon Slayer: Kimetsu no Yaiba
+2026-08-14 12:46:16,428 -  INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-14 12:46:17,524 -  INFO - HTTP Request: POST https://fb036385-ad34-4ae1-8ed4-74b225e24f1d.europe-west6-0.gcp.cloud.qdrant.io:6333/collections/Anime_Data/points/query "HTTP/1.1 200 OK"
+2026-08-14 12:46:18,816 -  INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
