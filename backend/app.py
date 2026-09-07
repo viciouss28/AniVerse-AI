@@ -1,10 +1,14 @@
+from pathlib import Path
+from dotenv import load_dotenv
+
+BASE_DIR = Path(__file__).resolve().parent
+load_dotenv(BASE_DIR / ".env")
+
 import streamlit as st
 from pipeline.pipeline import AnimeRecommenderPipeline
-from dotenv import load_dotenv
 
 st.set_page_config(page_title="Anime Recommender",layout="wide")
 
-load_dotenv()
 
 @st.cache_resource
 def init_pipeline():
