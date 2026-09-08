@@ -1,8 +1,10 @@
 from dotenv import load_dotenv
 load_dotenv()
 
+import json
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from typing import Annotated
 
@@ -61,5 +63,32 @@ def recommendations(request: RecommendationRequest):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/recommendations/stream")
+def recommendations_stream(request: RecommendationRequest):
+    def event_generator():
+        try:
+            for chunk_text in pipeline.recommend_stream(request.query):
+                if chunk_text:
+                    event_data = json.dumps({"type": "chunk", "content": chunk_text})
+                    yield f"data: {event_data}\n\n"
+            done_data = json.dumps({"type": "done"})
+            yield f"data: {done_data}\n\n"
+        except Exception as e:
+            error_data = json.dumps({"type": "error", "message": "Unable to generate recommendations"})
+            yield f"data: {error_data}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        }
+    )
+
+
 
 

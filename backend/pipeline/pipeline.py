@@ -4,6 +4,7 @@ from config.config import MODEL_NAME
 from utils.logger import get_logger
 from utils.custom_exceptions import CustomException
 
+
 logger = get_logger(__name__)
 
 class AnimeRecommenderPipeline:
@@ -30,4 +31,13 @@ class AnimeRecommenderPipeline:
         except Exception as e:
             logger.error(f"Recommendation failed {str(e)}")
             raise CustomException(f"Error during recommendation ",e)
+
+    def recommend_stream(self, query: str):
+        try:
+            logger.info(f"Received streaming query : {query}")
+            yield from self.recommender.get_recommendation_stream(query)
+        except Exception as e:
+            logger.error(f"Streaming recommendation failed {str(e)}")
+            raise CustomException(f"Error during recommendation stream ", e)
+
 

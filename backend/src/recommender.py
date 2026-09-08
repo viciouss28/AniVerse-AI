@@ -89,3 +89,47 @@ class AnimeRecommender:
         except Exception as e:
             raise Exception(f"LLM recommendation failed : {e}")
 
+    def get_recommendation_stream(self, query: str):
+        """
+        Generates anime recommendation streaming token chunks based on a query using LLM + tool chain.
+        :param query: str
+        """
+        try:
+            system_instruction = self.prompt_template.template
+            messages = [
+                SystemMessage(content=system_instruction),
+                HumanMessage(content=query)
+            ]
+
+            ai_msg = self.chain_with_tool.invoke(messages)
+            messages.append(ai_msg)
+
+            if ai_msg.tool_calls:
+                for tool_call in ai_msg.tool_calls:
+                    if tool_call["name"] == "retrieve_anime_tool":
+                        tool_result = self.anime_tool.invoke(tool_call)
+                        messages.append(tool_result)
+
+                for chunk in self.chain_with_tool.stream(messages):
+                    if hasattr(chunk, 'content') and chunk.content:
+                        if isinstance(chunk.content, str):
+                            yield chunk.content
+                        elif isinstance(chunk.content, list):
+                            for part in chunk.content:
+                                if isinstance(part, str):
+                                    yield part
+                                elif isinstance(part, dict) and 'text' in part:
+                                    yield part['text']
+            else:
+                if hasattr(ai_msg, 'content') and ai_msg.content:
+                    yield ai_msg.content
+                else:
+                    for chunk in self.chain_with_tool.stream(messages):
+                        if hasattr(chunk, 'content') and chunk.content:
+                            if isinstance(chunk.content, str):
+                                yield chunk.content
+        except Exception as e:
+            raise Exception(f"LLM streaming recommendation failed : {e}")
+
+
+
