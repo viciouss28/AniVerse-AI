@@ -1,0 +1,13 @@
+animeenv
+
+.env
+
+experiments
+
+data_pipeline
+
+.idea
+
+ANIME_RECOMMENDATION.egg-info
+
+logs/
