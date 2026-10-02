@@ -1,9 +1,14 @@
 import json
+import os
+import re
+import time
 
 import requests
 import streamlit as st
 
-API_BASE = "http://127.0.0.1:8000"
+# Set API_BASE_URL in your deployment environment (e.g. https://your-api.onrender.com)
+API_BASE = os.getenv("API_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+WORD_DELAY = 0.05  # seconds between each word while streaming
 
 st.set_page_config(page_title="AniVerse", page_icon="🎌", layout="centered")
 st.title("🎌 AniVerse")
@@ -12,7 +17,7 @@ st.caption("AI-powered anime recommendations")
 # ---------------- Sidebar ----------------
 with st.sidebar:
     st.header("Settings")
-    api_base = st.text_input("API URL", value=API_BASE)
+    api_base = API_BASE
     use_stream = st.toggle("Stream response", value=True)
 
     st.divider()
@@ -74,6 +79,22 @@ def stream_recommendation(query: str):
                 break
 
 
+def slow_stream(chunks, delay: float):
+    """Re-emits streamed text one word at a time, pausing `delay` seconds per word."""
+    buffer = ""
+    for chunk in chunks:
+        buffer += chunk
+        parts = re.split(r"(\s+)", buffer)
+        # the last part may be an unfinished word, so keep it in the buffer
+        for part in parts[:-1]:
+            yield part
+            if delay and part.strip():
+                time.sleep(delay)
+        buffer = parts[-1]
+    if buffer:
+        yield buffer
+
+
 # ---------------- Chat state ----------------
 if "messages" not in st.session_state:
     st.session_state["messages"] = []
@@ -96,7 +117,9 @@ if user_query:
     with st.chat_message("assistant"):
         try:
             if use_stream:
-                answer = st.write_stream(stream_recommendation(user_query))
+                answer = st.write_stream(
+                    slow_stream(stream_recommendation(user_query), WORD_DELAY)
+                )
             else:
                 with st.spinner("Finding anime..."):
                     answer = fetch_recommendation(user_query)

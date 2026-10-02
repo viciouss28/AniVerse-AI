@@ -1,88 +1,146 @@
+import os
+import re
+
 from langchain_groq import ChatGroq
 from langchain.tools import tool
-from langchain_core.messages import HumanMessage,SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 from src.prompt_template import get_anime_prompt
-import os
+
+# Used ONLY for call 1 (the model decides whether to search and what to search for)
+ROUTER_PROMPT = (
+    "You are an anime recommendation assistant. "
+    "For any anime-related request, call retrieve_anime_tool with a short "
+    "search query describing the genres, themes, or style wanted. "
+    "If the request is not about anime, answer it directly."
+)
+
 
 def build_anime_retriever_tool(retriever):
     """
     Returns a langchain tool to retrieve anime information from the vector store.
-    :param retriever:
-    :return:
+    The model uses it in call 1 to decide the search query; the actual retrieval
+    and filtering happen in AnimeRecommender._retrieve_context.
     """
+
     @tool
-    def retrieve_anime_tool(query : str) -> str:
+    def retrieve_anime_tool(query: str) -> str:
         """
-            Use this tool to search the anime knowledge base.
+        Use this tool to search the anime knowledge base.
 
-            Always call this tool to search for anime-related questions such as: recommendation , similarity search, genres , or plot summaries.
+        Always call this tool for anime-related questions such as
+        recommendations, similarity search, genres, or plot summaries.
 
-            input : - query : User's anime preference or question.
-
-            output : - Relevant anime information retrieved from the vector database.
-            :param query:
-            :return:
+        input : - query : User's anime preference or question.
+        output : - Relevant anime information retrieved from the vector database.
         """
         docs = retriever.invoke(query)
-
         return "\n\n".join(doc.page_content for doc in docs)
+
     return retrieve_anime_tool
 
 
+# ---------- helpers for excluding the title the user mentioned ----------
+
+def _doc_title(doc) -> str:
+    m = re.search(r"Title:\s*(.*?)\s*Overview:", doc.page_content, re.S)
+    return m.group(1).strip().lower() if m else ""
+
+
+def _referenced_title(user_query: str) -> str:
+    """Extracts 'naruto' from 'suggest anime like naruto' / 'similar to naruto'."""
+    m = re.search(r"(?:like|similar to)\s+(.+?)[\s.?!]*$", user_query.strip(), re.I)
+    return m.group(1).strip().lower() if m else ""
+
+
+def _is_excluded(doc, user_query: str) -> bool:
+    """True if the doc is the title the user mentioned (or a sequel/spin-off)."""
+    title = _doc_title(doc)
+    if not title:
+        return False
+
+    # exact title mentioned anywhere in the user's query (word boundaries)
+    if re.search(r"\b" + re.escape(title) + r"\b", user_query.lower()):
+        return True
+
+    # catches sequels/spin-offs, e.g. "naruto: shippuden" when user said "naruto"
+    ref = _referenced_title(user_query)
+    if ref and ref in title:
+        return True
+
+    return False
+
+
 class AnimeRecommender:
-    def __init__(self,retriever,model_name : str):
-        """
-        Initializes the AnimeRecommender object with a retriever and LLM.
-        :param retriever:
-        :param model_name:
-        """
+    def __init__(self, retriever, model_name: str):
         self.retriever = retriever
 
-        # we use the prompt template text as a system message
+        # answer-style prompt, used for the final call
         self.prompt_template = get_anime_prompt()
 
-        self.llm = ChatGroq(model=model_name,
-                            api_key=os.getenv("GROQ_API_KEY"),
-                            temperature=0
-                            )
+        self.llm = ChatGroq(
+            model=model_name,
+            api_key=os.getenv("GROQ_API_KEY"),
+            temperature=0,
+        )
 
-        # Build the tool
         self.anime_tool = build_anime_retriever_tool(self.retriever)
-
-        # Bind the tool to llm
         self.chain_with_tool = self.llm.bind_tools([self.anime_tool])
 
-    def get_recommendation(self,query:str) -> str:
+    # ------------------------------------------------------------------
+    def _retrieve_context(self, ai_msg, user_query: str) -> str:
         """
-        Generates anime recommendation based on a query using LLM + tool chain.
-        :param query: str
-        :return: str
+        Runs the retrieval the model asked for. Keeps the model's own search
+        query (better semantic search) but removes the anime the user mentioned.
+        Returns plain text context.
         """
+        parts = []
+        for tc in ai_msg.tool_calls:
+            if tc["name"] != "retrieve_anime_tool":
+                continue
+            search_q = tc["args"].get("query") or user_query
+            docs = self.retriever.invoke(search_q)
 
+            kept = [d for d in docs if not _is_excluded(d, user_query)]
+            docs = kept or docs  # never end up with zero docs
+
+            parts.append("\n\n".join(d.page_content for d in docs))
+
+        if not parts:  # safety net: model called an unknown tool
+            docs = self.retriever.invoke(user_query)
+            kept = [d for d in docs if not _is_excluded(d, user_query)]
+            parts.append("\n\n".join(d.page_content for d in (kept or docs)))
+
+        return "\n\n".join(parts)
+
+    def _router_messages(self, query: str):
+        return [
+            SystemMessage(content=ROUTER_PROMPT),
+            HumanMessage(content=query),
+        ]
+
+    def _final_messages(self, query: str, context: str):
+        """Final call: no tool messages, retrieved text goes in as plain context."""
+        return [
+            SystemMessage(content=self.prompt_template.template),
+            HumanMessage(
+                content=(
+                    f"User request: {query}\n\n"
+                    f"Retrieved anime information:\n{context}"
+                )
+            ),
+        ]
+
+    # ------------------------------------------------------------------
+    def get_recommendation(self, query: str) -> str:
         try:
-            # Construct messages with system instruction
-            # We extract the template text to use as system prompt, ignoring variables
-            # as the flow us slightly different from a standard chain
+            # Call 1: tools bound, model decides whether/what to search
+            ai_msg = self.chain_with_tool.invoke(self._router_messages(query))
 
-            system_instruction = self.prompt_template.template
-
-            messages = [
-                SystemMessage(content=system_instruction),
-                HumanMessage(content=query)
-            ]
-
-            # Model decides tool usage
-            ai_msg = self.chain_with_tool.invoke(messages)
-            messages.append(ai_msg)
-
-            # Execute tools if required
             if ai_msg.tool_calls:
-                for tool_call in ai_msg.tool_calls:
-                    if tool_call["name"] == "retrieve_anime_tool":
-                        tool_result = self.anime_tool.invoke(tool_call)
-                        messages.append(tool_result)
+                context = self._retrieve_context(ai_msg, query)
 
-                response = self.llm.invoke(messages)
+                # Call 2: plain LLM, plain-text context, no tool history
+                response = self.llm.invoke(self._final_messages(query, context))
                 return response.content
 
             return ai_msg.content
@@ -90,35 +148,18 @@ class AnimeRecommender:
             raise Exception(f"LLM recommendation failed : {e}")
 
     def get_recommendation_stream(self, query: str):
-        """
-        Streams anime recommendations token by token using LLM + tool.
-        """
         try:
-            messages = [
-                SystemMessage(content=self.prompt_template.template),
-                HumanMessage(content=query),
-            ]
-
-            # Call 1: tools bound, model decides whether to retrieve
-            ai_msg = self.chain_with_tool.invoke(messages)
-            messages.append(ai_msg)
+            ai_msg = self.chain_with_tool.invoke(self._router_messages(query))
 
             if ai_msg.tool_calls:
-                for tool_call in ai_msg.tool_calls:
-                    if tool_call["name"] == "retrieve_anime_tool":
-                        # always search with the user's exact query
-                        tool_call["args"]["query"] = query
-                        messages.append(self.anime_tool.invoke(tool_call))
-
-                # Call 2: plain LLM (no tools), so it must write the answer
-                stream = self.llm.stream(messages)
-
+                context = self._retrieve_context(ai_msg, query)
+                stream = self.llm.stream(self._final_messages(query, context))
             elif ai_msg.content:
-                # model answered directly without retrieval
                 yield ai_msg.content
                 return
             else:
-                stream = self.llm.stream(messages)
+                context = self._retrieve_context(ai_msg, query)
+                stream = self.llm.stream(self._final_messages(query, context))
 
             for chunk in stream:
                 content = chunk.content
@@ -131,9 +172,5 @@ class AnimeRecommender:
                             yield part
                         elif isinstance(part, dict) and part.get("text"):
                             yield part["text"]
-
         except Exception as e:
             raise Exception(f"LLM streaming recommendation failed : {e}")
-
-
-

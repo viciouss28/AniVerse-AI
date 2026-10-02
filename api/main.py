@@ -7,6 +7,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from typing import Annotated
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 from pipeline.pipeline import AnimeRecommenderPipeline
 app = FastAPI(
@@ -87,16 +90,6 @@ def recommendations_stream(request: RecommendationRequest):
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
         },
-    )
-
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        }
     )
 
 
