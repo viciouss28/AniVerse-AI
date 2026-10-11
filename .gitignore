@@ -1,13 +1,16 @@
-animeenv
+animeenv/
 
 .env
 
-experiments
+experiments/
 
-data_pipeline
+data_pipeline/
 
-.idea
+.idea/
 
 ANIME_RECOMMENDATION.egg-info
 
 logs/
+
+__pycache__/
+*.py[cod]
