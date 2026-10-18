@@ -26,3 +26,5 @@ ipykernel
 requests
 
 setuptools
+
+streamlit

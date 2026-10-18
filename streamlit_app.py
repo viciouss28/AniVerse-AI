@@ -7,7 +7,7 @@ import requests
 import streamlit as st
 
 # Set API_BASE_URL in your deployment environment (e.g. https://your-api.onrender.com)
-API_BASE = os.getenv("API_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+API_BASE = os.getenv("API_BASE_URL", "http://api:8000").rstrip("/")
 WORD_DELAY = 0.05  # seconds between each word while streaming
 
 st.set_page_config(page_title="AniVerse", page_icon="🎌", layout="centered")
